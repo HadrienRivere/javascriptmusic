@@ -6,14 +6,15 @@ import { insertRecording as insertRecording4klang } from './4klangsequencer/edit
 import {} from './webaudiomodules/preseteditor.js';
 import { setInstrumentNames, appendToSubtoolbar1, toggleSpinner } from './app.js';
 import { readfile, writefileandstage, initWASMGitClient, addRemoteSyncListener } from './wasmgit/wasmgitclient.js';
+import { createPatternToolsGlobal } from './pattern_tools.js';
 
 export let songsourceeditor;
 export let synthsourceeditor;
 let gitrepoconfig = null;
 
 async function loadCodeMirror() {
-    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.52.2/codemirror.min.js');
-    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.52.2/mode/javascript/javascript.js'); 
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.55.0/codemirror.min.js');
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.55.0/mode/javascript/javascript.js'); 
     
     await loadScript('https://codemirror.net/addon/search/search.js');
     await loadScript('https://codemirror.net/addon/search/searchcursor.js');
@@ -65,9 +66,8 @@ export async function initEditor(componentRoot) {
         lineNumbers: true,
         gutters: ["CodeMirror-lint-markers"],
         lint: {
-            'esversion': '8',
-            'elision': true,
-            'laxcomma': true
+            'esversion': 6,
+            'elision': true
         }
     });
 
@@ -178,24 +178,27 @@ export async function initEditor(componentRoot) {
             window.insertRecording = () => insertRecording4klang(insertStringIntoEditor);
         }
 
-        
-        eval(pattern_tools_src);
+        const patternToolsGlobal = createPatternToolsGlobal();
         try {
             window.WASM_SYNTH_LOCATION = null;
             if (songmode === 'WASM') {
-                eval(songsource);
+                const songfunc = new Function(
+                                ['global'].concat(Object.keys(patternToolsGlobal)),
+                                songsource);
+                songfunc.apply(patternToolsGlobal,
+                        [patternToolsGlobal].concat(Object.values(patternToolsGlobal)));
             }
         } catch(e) {
             errorMessagesContentElement.innerText = e;
             errorMessagesElement.style.display = 'block';
             throw e;
         }
-        const patterns = generatePatterns();
-        const instrumentPatternLists = generateInstrumentPatternLists();
+        const patterns = patternToolsGlobal.generatePatterns();
+        const instrumentPatternLists = patternToolsGlobal.generateInstrumentPatternLists();
         const song = {
                 instrumentPatternLists: instrumentPatternLists,
-                patterns: patterns, BPM: window.bpm,
-                patternsize: 1 << window.pattern_size_shift
+                patterns: patterns, BPM: patternToolsGlobal.bpm,
+                patternsize: 1 << patternToolsGlobal.pattern_size_shift
         };
 
         const spinner = componentRoot.querySelector('.spinner');
@@ -245,11 +248,11 @@ export async function initEditor(componentRoot) {
             patterns: song.patterns.map(p => new Array(p.length).fill(0))
         };    
         
-        let instrSelectCount = setInstrumentNames(instrumentNames);
+        let instrSelectCount = setInstrumentNames(patternToolsGlobal.instrumentNames);
         
         const instrSelect = componentRoot.getElementById('midichannelmappingselection');
-        Object.keys(instrumentGroupMap).forEach(groupname => {            
-            const groupinstruments = instrumentGroupMap[groupname];
+        Object.keys(patternToolsGlobal.instrumentGroupMap).forEach(groupname => {            
+            const groupinstruments = patternToolsGlobal.instrumentGroupMap[groupname];
             window.midichannelmappings[groupname] = {
                 min: window.midichannelmappings[groupinstruments[0]],
                 max: window.midichannelmappings[groupinstruments[groupinstruments.length - 1]]
@@ -364,6 +367,4 @@ export async function initEditor(componentRoot) {
     }
 
     window.editoractive = true;
-
-    pattern_tools_src = await fetch('pattern_tools.js').then(r => r.text());
 }
