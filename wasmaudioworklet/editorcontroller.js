@@ -96,8 +96,6 @@ export async function initEditor(componentRoot) {
 
     toggleEditors('presetsui', false);
     
-    const global = window;
-    let pattern_tools_src;
     let synthsource;
 
     componentRoot.getElementById('savesongbutton').onclick = () => compileAndPostSong();
