@@ -34,7 +34,8 @@ async function compileWebAssemblySynth(synthsource, song, samplerate) {
     synthcompilerworker.postMessage({
         synthsource: synthsource,
         samplerate: samplerate,
-        song: song
+        song: song,
+        exportmode: 1
     });
     
     const result = await new Promise((resolve) => synthcompilerworker.onmessage = (msg) => resolve(msg));

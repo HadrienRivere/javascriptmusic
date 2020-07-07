@@ -138,7 +138,7 @@ export function mixernext(leftSampleBufferPtr: usize, rightSampleBufferPtr: usiz
         assert.isAbove(audioWorkletMessage.wasm.length, 1000);
     });
     
-    it('should compile and export song to wasm', async () => {        
+    it.only('should compile and export song to wasm with WASI main entry point', async () => {        
         songsourceeditor.doc.setValue(songsource);
         synthsourceeditor.doc.setValue(synthsource);
         const appElement = document.getElementsByTagName('app-javascriptmusic')[0].shadowRoot;
@@ -174,6 +174,39 @@ export function mixernext(leftSampleBufferPtr: usize, rightSampleBufferPtr: usiz
                 fd_write: () => 0
             }
         })).instance.exports._start);
+    });
+    it.only('should compile and export song to wasm with lib functions exported', async () => {        
+        songsourceeditor.doc.setValue(songsource);
+        synthsourceeditor.doc.setValue(synthsource);
+        const appElement = document.getElementsByTagName('app-javascriptmusic')[0].shadowRoot;
+        let audioWorkletMessage;
+        window.audioworkletnode = {
+            port: {
+                postMessage: msg => audioWorkletMessage = msg
+            },
+            context: {
+                sampleRate: 44100
+            }
+        };
+        const downloadPromise = new Promise(resolve => {
+            document._createElement = document.createElement;
+            document.createElement = function(elementName, options) {
+                const elm = this._createElement(elementName, options);
+
+                if (elementName === 'a') {
+                    elm.click = () => resolve(elm.href);
+                }
+                return elm;
+            }
+        });
+
+        appElement.querySelector('#exportbutton').click();  
+        const url = await downloadPromise;
+
+        const wasmbinary = await fetch(url).then(r => r.arrayBuffer());
+
+        assert.isAbove(wasmbinary.byteLength, 1000);
+        assert.isDefined((await WebAssembly.instantiate(wasmbinary)).instance.exports.fillSampleBuffer);
     });  
 });
 
